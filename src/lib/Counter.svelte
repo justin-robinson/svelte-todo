@@ -1,20 +1,29 @@
 <script lang="ts">
 	import { spring } from 'svelte/motion';
+	import { browser } from '$app/env';
+	import { writable } from 'svelte/store';
 
-	let count = 0;
+	let count = writable(load())
 
 	const displayed_count = spring();
-	$: displayed_count.set(count);
+	$: displayed_count.set($count);
+	$: if (browser) localStorage.count = $count.toString()
 	$: offset = modulo($displayed_count, 1);
 
 	function modulo(n: number, m: number) {
 		// handle negative numbers
 		return ((n % m) + m) % m;
 	}
+
+	function load():number {
+		if (browser) return parseInt(localStorage.count || '0')
+
+		return 0
+	}
 </script>
 
 <div class="counter">
-	<button on:click={() => (count -= 1)} aria-label="Decrease the counter by one">
+	<button on:click={() => ($count -= 1)} aria-label="Decrease the counter by one">
 		<svg aria-hidden="true" viewBox="0 0 1 1">
 			<path d="M0,0.5 L1,0.5" />
 		</svg>
@@ -27,7 +36,7 @@
 		</div>
 	</div>
 
-	<button on:click={() => (count += 1)} aria-label="Increase the counter by one">
+	<button on:click={() => ($count += 1)} aria-label="Increase the counter by one">
 		<svg aria-hidden="true" viewBox="0 0 1 1">
 			<path d="M0,0.5 L1,0.5 M0.5,0 L0.5,1" />
 		</svg>
