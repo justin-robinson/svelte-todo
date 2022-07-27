@@ -1,42 +1,34 @@
-import { api } from './_api';
-import type { RequestHandler } from './__types';
+import { read, write, deleteId } from './_api'
+import type { RequestHandler } from './__types'
 
 export const GET: RequestHandler = async ({ locals }) => {
-	// locals.userid comes from src/hooks.js
-	const response = await api('GET', `todos/${locals.userid}`);
-
-	if (response.status === 404) {
-		// user hasn't created a todo list.
-		// start with an empty array
-		return {
-			body: {
-				todos: []
-			}
-		};
-	}
-
-	if (response.status === 200) {
-		return {
-			body: {
-				todos: await response.json()
-			}
-		};
-	}
-
 	return {
-		status: response.status
-	};
-};
+		body: {
+			todos: await read(locals.userid)
+		}
+	}
+}
 
 export const POST: RequestHandler = async ({ request, locals }) => {
-	const form = await request.formData();
+	const form = await request.formData()
 
-	await api('POST', `todos/${locals.userid}`, {
-		text: form.get('text')
-	});
+	const todos = await read(locals.userid)
 
-	return {};
-};
+	let id
+	do {
+		id = crypto.randomUUID()
+	} while (id in todos)
+
+	await write(locals.userid, {
+		id,
+		userId: locals.userid,
+		text: form.get('text')?.toString() || '',
+		done: false,
+		created_at: new Date()
+	})
+
+	return {}
+}
 
 // If the user has JavaScript disabled, the URL will change to
 // include the method override unless we redirect back to /todos
@@ -45,23 +37,35 @@ const redirect = {
 	headers: {
 		location: '/todos'
 	}
-};
+}
 
 export const PATCH: RequestHandler = async ({ request, locals }) => {
-	const form = await request.formData();
+	const form = await request.formData()
 
-	await api('PATCH', `todos/${locals.userid}/${form.get('uid')}`, {
-		text: form.has('text') ? form.get('text') : undefined,
-		done: form.has('done') ? !!form.get('done') : undefined
-	});
+	const id = form.get('id')?.toString() || ''
+	const todos = await read(locals.userid, id)
+	const todo = todos[0]
 
-	return redirect;
-};
+	if (!todo) {
+		throw new Error(`Can't find todo ${id} for user ${locals.userid}`)
+	}
+
+	todo.text = form.get('text')?.toString() || todo.text
+	todo.done = !!form.get('done')
+
+	await write(locals.userid, todo)
+
+	return redirect
+}
 
 export const DELETE: RequestHandler = async ({ request, locals }) => {
-	const form = await request.formData();
+	const form = await request.formData()
 
-	await api('DELETE', `todos/${locals.userid}/${form.get('uid')}`);
+	if (!form.get('id')) {
+		throw new Error('Delete id is null')
+	}
 
-	return redirect;
-};
+	deleteId(locals.userid, form.get('id')?.toString() || '')
+
+	return redirect
+}
